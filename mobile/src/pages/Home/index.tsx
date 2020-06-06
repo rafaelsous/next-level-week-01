@@ -1,20 +1,78 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Feather as Icon } from '@expo/vector-icons';
 import { View, Image, Text, StyleSheet, ImageBackground, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { RectButton } from 'react-native-gesture-handler';
 import { useNavigation } from '@react-navigation/native';
+import axios from 'axios';
+
+import DropDown from '../../components/DropDown';
+
+interface IBGEUFResponse {
+  sigla: string;
+}
+
+interface IBGECityResponse {
+  nome: string;
+}
+
+interface Item {
+  label: string;
+  value: string;
+}
 
 const Home: React.FC = () => {
-  const [uf, setUf] = useState('');
-  const [city, setCity] = useState('');
+  const [ufs, setUfs] = useState<Item[]>([]);
+  const [cities, setCities] = useState<Item[]>([]);
+
+  const [selectedUf, setSelectedUf] = useState<Item>();
+  const [selectedCity, setSelectedCity] = useState<Item>();
 
   const navigation = useNavigation();
 
+  useEffect(() => {
+    axios.get<IBGEUFResponse[]>('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome')
+      .then(response => {
+        const ufItems = response.data.map(uf => ({
+          label: uf.sigla,
+          value: uf.sigla,
+        }));
+
+        setUfs(ufItems);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!selectedUf) {
+      console.log('Humm humm');
+      setCities([]);
+      return;
+    }
+
+    axios
+      .get<IBGECityResponse[]>(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedUf}/municipios`)
+      .then(response => {
+        const cityItems = response.data.map(city => ({
+          label: city.nome,
+          value: city.nome,
+        }));
+
+        setCities(cityItems);
+      });
+  }, [selectedUf]);
+
   function handleNavigateToPoints() {
     navigation.navigate('Points', {
-      uf,
-      city
+      uf: selectedUf,
+      city: selectedCity
     });
+  }
+
+  function handleChangeUf(uf: Item) {
+    if (!selectedUf) {
+      setSelectedCity(undefined);
+    }
+
+    setSelectedUf(uf);
   }
 
   return (
@@ -33,22 +91,19 @@ const Home: React.FC = () => {
         </View>
 
         <View style={styles.footer}>
-          <TextInput
-            style={styles.input}
-            placeholder="UF"
-            value={uf}
-            onChangeText={setUf}
-            maxLength={2}
-            autoCorrect={false}
-            autoCapitalize="characters"
+          <DropDown
+            placeholder="Selecione um estado (UF)"
+            items={ufs}
+            onChangeValue={value => handleChangeUf(value)}
+            value={selectedUf as Item}
           />
 
-          <TextInput
-            style={styles.input}
-            placeholder="Cidade"
-            value={city}
-            onChangeText={setCity}
-            autoCorrect={false}
+          <DropDown
+            placeholder="Selecione uma cidade"
+            items={cities}
+            onChangeValue={value => setSelectedCity(value)}
+            value={selectedCity as Item}
+            disabled={!selectedUf}
           />
 
           <RectButton style={styles.button} onPress={handleNavigateToPoints}>
